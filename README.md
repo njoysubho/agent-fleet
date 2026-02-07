@@ -67,11 +67,9 @@ agentfleet/
 │   ├── redis_client.py     # RedisCoordinator (all Redis patterns)
 │   ├── directives.py       # Prompt directive parsing
 │   ├── git_helpers.py      # Bare repo, worktree, merge operations
-│   └── db/                 # SQLAlchemy ORM models + async connection
 ├── infra/
-│   ├── redis/redis.conf    # AOF persistence config
-│   └── postgres/init.sql   # Schema initialization
-├── docker-compose.yml      # 5 services: redis, postgres, api, orchestrator, leader/worker
+│   └── redis/redis.conf    # AOF persistence config
+├── docker-compose.yml      # 4 services: redis, api, orchestrator, leader/worker
 └── .env.example            # Environment variable template
 ```
 
@@ -96,7 +94,7 @@ cp .env.example .env
 docker compose build
 
 # Start core services
-docker compose up redis postgres api orchestrator
+docker compose up redis api orchestrator
 ```
 
 ### Submit a Job
@@ -119,7 +117,7 @@ curl http://localhost:8000/api/v1/jobs/<job_id> -H "X-Api-Key: change-me"
 To test the full pipeline without calling the Anthropic API:
 
 ```bash
-AGENT_SDK_MODE=dry_run docker compose up redis postgres api orchestrator
+AGENT_SDK_MODE=dry_run docker compose up redis api orchestrator
 ```
 
 ## Contributing
@@ -145,7 +143,7 @@ AGENT_SDK_MODE=dry_run docker compose up redis postgres api orchestrator
 4. **Start infrastructure** for local testing:
 
    ```bash
-   docker compose up redis postgres
+   docker compose up redis
    ```
 
 ### Code Organization
@@ -173,7 +171,7 @@ AGENT_SDK_MODE=dry_run docker compose up redis postgres api orchestrator
 4. **Test end-to-end with dry-run mode** before testing with live API calls:
    ```bash
    docker compose build
-   AGENT_SDK_MODE=dry_run docker compose up redis postgres api orchestrator
+   AGENT_SDK_MODE=dry_run docker compose up redis api orchestrator
    # Submit a test job and verify logs
    ```
 

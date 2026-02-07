@@ -19,7 +19,6 @@ class LeaderAgent(BaseAgent):
     def __init__(self, agent_id: str, settings: Settings):
         super().__init__(agent_id=agent_id, role="leader", settings=settings)
         self._granted_worker_count: int | None = None
-        self._granted_worker_ids: list[str] = []
 
     async def run(self) -> None:
         assert self.coordinator is not None
@@ -414,7 +413,6 @@ class LeaderAgent(BaseAgent):
                 continue
             if payload.get("type") == "worker_request_response":
                 self._granted_worker_count = payload.get("granted_count", 0)
-                self._granted_worker_ids = payload.get("worker_ids", [])
                 print(
                     f"[leader] orchestrator granted {self._granted_worker_count} workers",
                     flush=True,

@@ -13,30 +13,12 @@ services:
       timeout: 3s
       retries: 20
 
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-agentteam}
-      POSTGRES_USER: ${POSTGRES_USER:-agentteam}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agentteam} -d ${POSTGRES_DB:-agentteam}"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
   api:
     build:
       context: .
       dockerfile: api/Dockerfile
     environment:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      DATABASE_URL: ${DATABASE_URL:-}
       API_SECRET_KEY: ${API_SECRET_KEY:-change-me}
     ports:
       - "8000:8000"
@@ -82,7 +64,6 @@ services:
       AGENT_ROLE: leader
       AGENT_ID: ${LEADER_ID:-leader-0}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      DATABASE_URL: ${DATABASE_URL:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       MODEL: ${MODEL:-}
       AGENT_SDK_MODE: ${AGENT_SDK_MODE:-live}
@@ -102,7 +83,6 @@ services:
     environment:
       AGENT_ROLE: worker
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      DATABASE_URL: ${DATABASE_URL:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       MODEL: ${MODEL:-}
       AGENT_SDK_MODE: ${AGENT_SDK_MODE:-live}
@@ -116,5 +96,4 @@ services:
 
 volumes:
   redis-data:
-  postgres-data:
   repo:

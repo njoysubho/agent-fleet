@@ -4,11 +4,11 @@
 > Status: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked
 
 ## Phase 1: Infrastructure
-- [x] 1.1 Create `docker-compose.yml` (redis, postgres, api, leader, worker services)
+- [x] 1.1 Create `docker-compose.yml` (redis, api, leader, worker services)
 - [x] 1.2 Create `.env.example` with all env vars
 - [x] 1.3 Create `infra/redis/redis.conf` (AOF persistence)
-- [x] 1.4 Create `infra/postgres/init.sql` (jobs, tasks, task_dependencies, messages, agent_events tables)
-- [ ] 1.5 Verify `docker compose up` — all 5 services healthy
+- [x] 1.4 All data storage uses Redis (postgres removed)
+- [x] 1.5 Verify `docker compose up` — all 4 services healthy
 
 ## Phase 2: Shared Library
 - [x] 2.1 Create `shared/protocol.py` — Pydantic models (AgentMessage, Task, TaskAssignment, IdleNotification, ShutdownRequest, PlanApprovalRequest)

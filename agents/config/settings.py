@@ -7,7 +7,6 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Settings:
     redis_url: str
-    database_url: str | None
     model: str
     heartbeat_interval_seconds: float
     permission_mode: str
@@ -20,7 +19,6 @@ class Settings:
     def from_env() -> "Settings":
         return Settings(
             redis_url=os.environ.get("REDIS_URL", "redis://redis:6379/0"),
-            database_url=os.environ.get("DATABASE_URL"),
             model=os.environ.get("MODEL", ""),
             heartbeat_interval_seconds=float(os.environ.get("HEARTBEAT_INTERVAL", "5")),
             permission_mode=os.environ.get(

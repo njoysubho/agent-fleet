@@ -6,7 +6,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.routers import agents, jobs, tasks
-from api.services.state import build_state, check_db
+from api.services.state import build_state
 
 
 async def lifespan(app: FastAPI):
@@ -17,11 +17,6 @@ async def lifespan(app: FastAPI):
     finally:
         try:
             await state.coordinator.close()
-        except Exception:
-            pass
-        try:
-            if state.db_engine is not None:
-                await state.db_engine.dispose()
         except Exception:
             pass
 
@@ -50,8 +45,7 @@ async def health():
     except Exception:
         redis_ok = False
 
-    db_ok = await check_db(state.db_engine)
-    return {"ok": redis_ok and db_ok, "redis": redis_ok, "db": db_ok}
+    return {"ok": redis_ok, "redis": redis_ok}
 
 
 @app.websocket("/api/v1/ws/jobs/{job_id}")

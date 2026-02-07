@@ -1,0 +1,120 @@
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "/etc/redis/redis.conf"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+      - ./infra/redis/redis.conf:/etc/redis/redis.conf:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-agentteam}
+      POSTGRES_USER: ${POSTGRES_USER:-agentteam}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agentteam} -d ${POSTGRES_DB:-agentteam}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      DATABASE_URL: ${DATABASE_URL:-}
+      API_SECRET_KEY: ${API_SECRET_KEY:-change-me}
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  orchestrator:
+    image: agentfleet-agents:latest
+    build:
+      context: .
+      dockerfile: agents/Dockerfile
+    environment:
+      AGENT_ROLE: orchestrator
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+
+      # Passed through to spawned leader/worker containers
+      AGENT_SDK_MODE: ${AGENT_SDK_MODE:-live}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      MODEL: ${MODEL:-}
+
+      # Orchestrator config
+      AGENTS_IMAGE: ${AGENTS_IMAGE:-agentfleet-agents:latest}
+      DOCKER_NETWORK: ${DOCKER_NETWORK:-agentfleet_default}
+      REPO_VOLUME: ${REPO_VOLUME:-agentfleet_repo}
+      MAX_WORKERS_PER_JOB: ${MAX_WORKERS_PER_JOB:-6}
+      CLEANUP_DELAY_SECONDS: ${CLEANUP_DELAY_SECONDS:-0}
+      DRY_RUN_SLEEP_SECONDS: ${DRY_RUN_SLEEP_SECONDS:-0}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - repo:/repo
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  leader:
+    profiles: ["pool"]
+    image: agentfleet-agents:latest
+    build:
+      context: .
+      dockerfile: agents/Dockerfile
+    environment:
+      AGENT_ROLE: leader
+      AGENT_ID: ${LEADER_ID:-leader-0}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      DATABASE_URL: ${DATABASE_URL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      MODEL: ${MODEL:-}
+      AGENT_SDK_MODE: ${AGENT_SDK_MODE:-live}
+      AGENT_PLANNER_TIMEOUT: ${AGENT_PLANNER_TIMEOUT:-30}
+    volumes:
+      - repo:/repo
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    profiles: ["pool"]
+    image: agentfleet-agents:latest
+    build:
+      context: .
+      dockerfile: agents/Dockerfile
+    environment:
+      AGENT_ROLE: worker
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      DATABASE_URL: ${DATABASE_URL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      MODEL: ${MODEL:-}
+      AGENT_SDK_MODE: ${AGENT_SDK_MODE:-live}
+    volumes:
+      - repo:/repo
+    depends_on:
+      redis:
+        condition: service_healthy
+      leader:
+        condition: service_started
+
+volumes:
+  redis-data:
+  postgres-data:
+  repo:

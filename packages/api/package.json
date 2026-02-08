@@ -1,0 +1,19 @@
+{
+  "name": "@agent-fleet/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@agent-fleet/shared": "*",
+    "fastify": "^5.2.0",
+    "@fastify/cors": "^11.0.0",
+    "@fastify/websocket": "^11.0.0",
+    "ioredis": "^5.4.2",
+    "zod": "^3.24.0"
+  }
+}

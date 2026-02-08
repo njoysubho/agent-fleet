@@ -16,7 +16,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: api/Dockerfile
+      dockerfile: packages/api/Dockerfile
     environment:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       API_SECRET_KEY: ${API_SECRET_KEY:-change-me}
@@ -30,15 +30,19 @@ services:
     image: agentfleet-agents:latest
     build:
       context: .
-      dockerfile: agents/Dockerfile
+      dockerfile: packages/agents/Dockerfile
     environment:
       AGENT_ROLE: orchestrator
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
 
       # Passed through to spawned leader/worker containers
       AGENT_SDK_MODE: ${AGENT_SDK_MODE:-live}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       MODEL: ${MODEL:-}
+
+      # Provider API keys — pass whichever you use
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
 
       # Orchestrator config
       AGENTS_IMAGE: ${AGENTS_IMAGE:-agentfleet-agents:latest}
@@ -59,15 +63,17 @@ services:
     image: agentfleet-agents:latest
     build:
       context: .
-      dockerfile: agents/Dockerfile
+      dockerfile: packages/agents/Dockerfile
     environment:
       AGENT_ROLE: leader
       AGENT_ID: ${LEADER_ID:-leader-0}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       MODEL: ${MODEL:-}
       AGENT_SDK_MODE: ${AGENT_SDK_MODE:-live}
       AGENT_PLANNER_TIMEOUT: ${AGENT_PLANNER_TIMEOUT:-30}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
     volumes:
       - repo:/repo
     depends_on:
@@ -79,13 +85,15 @@ services:
     image: agentfleet-agents:latest
     build:
       context: .
-      dockerfile: agents/Dockerfile
+      dockerfile: packages/agents/Dockerfile
     environment:
       AGENT_ROLE: worker
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       MODEL: ${MODEL:-}
       AGENT_SDK_MODE: ${AGENT_SDK_MODE:-live}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
     volumes:
       - repo:/repo
     depends_on:

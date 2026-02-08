@@ -1,0 +1,17 @@
+{
+  "name": "agent-fleet",
+  "private": true,
+  "workspaces": [
+    "packages/shared",
+    "packages/agents",
+    "packages/api"
+  ],
+  "scripts": {
+    "build": "npm run build -w @agent-fleet/shared && npm run build -w @agent-fleet/agents && npm run build -w @agent-fleet/api",
+    "clean": "rm -rf packages/*/dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}

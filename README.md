@@ -1,14 +1,14 @@
-# Agent Team
+# Agent Fleet
 
-Inspired by [Claude Code's agent teams](https://docs.anthropic.com/en/docs/claude-code) — where a leader agent spawns teammates, assigns tasks, and merges results — but rebuilt as a **remote, distributed system**. Claude Code's native teams run locally on a single machine. This project replicates that coordination model across Docker containers, using Redis as the backbone instead of local IPC, so agent crews can run on remote servers, scale horizontally, and be triggered via API.
+Model-agnostic, distributed agent team orchestration. A leader agent spawns teammates, assigns tasks, and merges results — coordinated across Docker containers via Redis.
 
-Each job gets an isolated crew of a leader + workers coordinated through Redis, with git worktrees for workspace isolation.
+Built on [pi-mono](https://github.com/badlogic/pi-mono) for model-agnostic LLM support (Anthropic, OpenAI, Google, Mistral, Bedrock, OpenRouter, Ollama, and more).
 
 ## Architecture
 
 ```
                          ┌────────────┐
-                         │  FastAPI    │
+                         │  Fastify   │
                POST /jobs│  Gateway   │
               ──────────►│  :8000     │
                          └─────┬──────┘
@@ -29,48 +29,61 @@ Each job gets an isolated crew of a leader + workers coordinated through Redis, 
                             │  │  │  task assignments via Redis inboxes
                             ▼  ▼  ▼
                         ┌───┐┌───┐┌───┐
-                        │ W ││ W ││ W │  Workers (Claude SDK sessions)
+                        │ W ││ W ││ W │  Workers (pi-mono agent sessions)
                         └───┘└───┘└───┘
 ```
 
-**Per-job lifecycle:** Orchestrator spawns a leader. Leader plans tasks, requests N workers. Orchestrator spawns workers. Workers execute via Claude SDK. When all tasks complete, every container self-exits and gets cleaned up.
+**Per-job lifecycle:** Orchestrator spawns a leader. Leader plans tasks, requests N workers. Orchestrator spawns workers. Workers execute via pi-mono agent runtime. When all tasks complete, every container self-exits and gets cleaned up.
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Language | Python 3.12 |
-| API | FastAPI + Uvicorn |
-| Agent SDK | `@anthropic-ai/claude-code` (Node.js CLI wrapped by Python) |
+| Language | TypeScript (Node.js 22) |
+| API | Fastify + WebSocket |
+| Agent Runtime | pi-mono (`@mariozechner/pi-agent-core` + `@mariozechner/pi-ai`) |
+| LLM Providers | Anthropic, OpenAI, Google, Mistral, OpenRouter, Ollama, vLLM, and more |
 | Coordination | Redis 7 (Streams, Lists/BRPOP, pub/sub, sorted sets) |
-| Database | PostgreSQL 16 (AsyncPG + SQLAlchemy) |
 | Containers | Docker Compose |
 | Git isolation | Git worktrees per agent |
+| Validation | Zod |
 
 ## Project Structure
 
 ```
-agentfleet/
-├── api/                    # FastAPI gateway
-│   ├── routers/            #   jobs, agents, tasks endpoints
-│   ├── services/           #   Redis + Postgres state access
-│   └── models/             #   Request/response schemas
-├── agents/
-│   ├── leader/             # Job planning, task assignment, merge coordination
-│   ├── worker/             # Task execution via Claude SDK sessions
-│   ├── orchestrator/       # Spawns leader/worker containers per job
-│   ├── config/             # Settings, agent type definitions
-│   ├── hooks/              # Safety hooks (block destructive commands)
-│   └── tools/              # Agent tool implementations
-├── shared/
-│   ├── protocol.py         # Pydantic models (messages, tasks, worker requests)
-│   ├── redis_client.py     # RedisCoordinator (all Redis patterns)
-│   ├── directives.py       # Prompt directive parsing
-│   ├── git_helpers.py      # Bare repo, worktree, merge operations
-├── infra/
-│   └── redis/redis.conf    # AOF persistence config
-├── docker-compose.yml      # 4 services: redis, api, orchestrator, leader/worker
-└── .env.example            # Environment variable template
+agent-fleet/
+├── packages/
+│   ├── shared/               # @agent-fleet/shared
+│   │   └── src/
+│   │       ├── protocol.ts       # Zod schemas (messages, tasks, worker requests)
+│   │       ├── redis-client.ts   # RedisCoordinator (all Redis patterns)
+│   │       ├── git-helpers.ts    # Bare repo, worktree, merge operations
+│   │       └── directives.ts     # Prompt directive parsing
+│   │
+│   ├── agents/               # @agent-fleet/agents
+│   │   ├── Dockerfile
+│   │   └── src/
+│   │       ├── entrypoint.ts     # Role-based dispatch (leader/worker/orchestrator)
+│   │       ├── base-agent.ts     # BaseAgent abstract class
+│   │       ├── config/           # Settings, agent type definitions
+│   │       ├── hooks/            # Safety hooks (block destructive commands)
+│   │       ├── provider/         # AgentProvider interface + pi-mono implementation
+│   │       ├── worker/           # Task execution
+│   │       ├── leader/           # Job planning, task assignment, merge coordination
+│   │       └── orchestrator/     # Container lifecycle management
+│   │
+│   └── api/                  # @agent-fleet/api
+│       ├── Dockerfile
+│       └── src/
+│           ├── main.ts           # Fastify app + WebSocket
+│           ├── middleware/        # Auth
+│           ├── routes/           # Jobs, agents, tasks endpoints
+│           ├── services/         # App state
+│           └── schemas.ts        # Request/response validation
+│
+├── infra/redis/redis.conf
+├── docker-compose.yml
+└── .env.example
 ```
 
 ## Getting Started
@@ -78,17 +91,17 @@ agentfleet/
 ### Prerequisites
 
 - Docker and Docker Compose
-- An Anthropic API key (optional for dry-run mode)
+- A provider API key (Anthropic, OpenAI, Google, etc.) — optional for dry-run mode
 
 ### Setup
 
 ```bash
 # Clone the repo
-git clone <repo-url> && cd agentfleet
+git clone <repo-url> && cd agent-fleet
 
 # Create your env file
 cp .env.example .env
-# Edit .env — at minimum set API_SECRET_KEY and optionally ANTHROPIC_API_KEY
+# Edit .env — set API_SECRET_KEY and optionally a provider API key
 
 # Build images
 docker compose build
@@ -114,96 +127,53 @@ curl http://localhost:8000/api/v1/jobs/<job_id> -H "X-Api-Key: change-me"
 
 ### Dry-Run Mode
 
-To test the full pipeline without calling the Anthropic API:
+To test the full pipeline without calling any LLM API:
 
 ```bash
 AGENT_SDK_MODE=dry_run docker compose up redis api orchestrator
 ```
 
-## Contributing
+### Model Selection
 
-### Development Setup
+Set the `MODEL` env var using pi-mono's `provider:model` format:
 
-1. **Fork and clone** the repository.
+```bash
+# Claude
+MODEL=anthropic:claude-sonnet-4-20250514 docker compose up
 
-2. **Install Python dependencies** for local development (outside Docker):
+# GPT-4o
+MODEL=openai:gpt-4o docker compose up
 
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate
-   pip install -r agents/requirements.txt -r api/requirements.txt
-   ```
+# Gemini
+MODEL=google:gemini-2.0-flash docker compose up
+```
 
-3. **Copy the env template:**
+## Development
 
-   ```bash
-   cp .env.example .env
-   ```
+### Local Setup
 
-4. **Start infrastructure** for local testing:
+```bash
+# Install dependencies
+npm install
 
-   ```bash
-   docker compose up redis
-   ```
+# Build all packages
+npm run build
+
+# Build individually
+npm run build -w @agent-fleet/shared
+npm run build -w @agent-fleet/agents
+npm run build -w @agent-fleet/api
+```
 
 ### Code Organization
 
-- **`shared/`** contains all models and Redis coordination logic. Changes here affect both the API and agents.
-- **`agents/`** is the agent runtime. The `entrypoint.py` dispatches based on `AGENT_ROLE` env var (`leader`, `worker`, or `orchestrator`).
-- **`api/`** is the HTTP gateway. It reads from Redis/Postgres but never runs agent logic directly.
-- Both the API and agents Dockerfiles copy `shared/` into their images — keep `shared/` free of agent-specific or API-specific imports.
-
-### Making Changes
-
-1. **Create a feature branch** from `main`:
-   ```bash
-   git checkout -b feature/your-change
-   ```
-
-2. **Follow existing patterns.** Look at how similar code works before adding new functionality:
-   - New Redis keys go in `RedisKeys` dataclass (`shared/redis_client.py`)
-   - New message types go in `shared/protocol.py` as Pydantic models
-   - New API endpoints go in `api/routers/` and get wired in `api/main.py`
-   - Agent behavior changes go in the relevant agent module under `agents/`
-
-3. **Keep `shared/protocol.py` as the single source of truth** for all inter-agent message types.
-
-4. **Test end-to-end with dry-run mode** before testing with live API calls:
-   ```bash
-   docker compose build
-   AGENT_SDK_MODE=dry_run docker compose up redis api orchestrator
-   # Submit a test job and verify logs
-   ```
-
-5. **Check container behavior:**
-   ```bash
-   # Watch orchestrator/leader/worker logs
-   docker compose logs -f orchestrator
-
-   # Verify containers spawn and clean up
-   docker ps --filter "label=agentteam.job_id"
-   ```
+- **`packages/shared/`** — Models and Redis coordination. Changes here affect both the API and agents.
+- **`packages/agents/`** — Agent runtime. The `entrypoint.ts` dispatches based on `AGENT_ROLE` env var.
+- **`packages/api/`** — HTTP gateway. Reads from Redis but never runs agent logic directly.
 
 ### Key Conventions
 
-- **Pydantic for all data models.** No raw dicts crossing module boundaries.
+- **Zod for all data models.** No raw objects crossing module boundaries.
 - **Redis as the coordination backbone.** Streams for job queue, Lists+BRPOP for agent inboxes, pub/sub for real-time events, SET NX for locks.
-- **Ephemeral containers per job.** Containers are named `agentfleet-{job_id[:8]}-{role}` and cleaned up automatically when the job reaches a terminal state.
-- **Pool mode** (leader/worker services with `profiles: ["pool"]`) is an alternative to orchestrated mode — used when you want long-lived agents instead of per-job containers.
-- **`JOB_ID` env var** distinguishes ephemeral (set) from pool (unset) mode in leader/worker code.
-
-### Areas for Contribution
-
-- **Tests** — no test suite exists yet. Unit tests for `shared/redis_client.py` and `shared/protocol.py`, integration tests for the job lifecycle, would be valuable.
-- **CI/CD** — GitHub Actions for linting, type checking, and integration tests.
-- **Linting config** — the project uses Ruff but has no committed config file. Adding a `pyproject.toml` with Ruff + mypy settings would help standardize.
-- **Error recovery** — handling leader crashes mid-job, stale worker detection, task reassignment.
-- **Observability** — structured logging, metrics (Prometheus), tracing.
-- **Task dependencies** — the planner creates independent tasks; adding dependency resolution would enable complex multi-step workflows.
-
-### Submitting a PR
-
-1. Make sure `docker compose build` succeeds.
-2. Test your change end-to-end in dry-run mode.
-3. Keep PRs focused — one feature or fix per PR.
-4. Describe what changed and why in the PR description.
+- **Ephemeral containers per job.** Named `agentfleet-{job_id[:8]}-{role}`, cleaned up automatically.
+- **Provider abstraction.** `AgentProvider` interface in `packages/agents/src/provider/types.ts` — swap LLM backends without touching agent logic.

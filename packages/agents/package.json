@@ -1,0 +1,19 @@
+{
+  "name": "@agent-fleet/agents",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/entrypoint.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/entrypoint.js"
+  },
+  "dependencies": {
+    "@agent-fleet/shared": "*",
+    "dockerode": "^4.0.4",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^3.3.34"
+  }
+}
